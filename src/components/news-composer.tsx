@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Field, Modal, TextArea, TextInput } from "@/components/manage/crud-ui";
+import { NewsMediaEditor } from "@/components/news-media";
 import { supabase } from "@/integrations/supabase/client";
 import { publishDraftNews, saveDraftNews, type News } from "@/lib/dashboard";
 import {
@@ -11,7 +12,13 @@ import {
   validateNewsDraft,
   type NewsDraftErrors,
 } from "@/lib/dashboard-blocks";
-import { emptyMedia, mediaFromNews, toNewsLinks } from "@/lib/news-media";
+import {
+  emptyMedia,
+  linkErrors,
+  mediaFromNews,
+  toNewsLinks,
+  type MediaDraft,
+} from "@/lib/news-media";
 
 /** Nom affiché comme auteur : prénom + nom du compte, à défaut son adresse. */
 async function fetchAuthorName(email: string): Promise<string> {
@@ -24,7 +31,7 @@ async function fetchAuthorName(email: string): Promise<string> {
 }
 
 /**
- * Rédiger (ou terminer) une actualité : texte seulement.
+ * Rédiger (ou terminer) une actualité : titre, texte, une image et jusqu'à 3 liens.
  * « Brouillon » enregistre ; « Publier » enregistre d'abord en brouillon puis demande confirmation.
  * Fermer la fenêtre sans enregistrer abandonne la saisie.
  */
@@ -43,6 +50,11 @@ export function NewsComposerModal({
   const [errors, setErrors] = useState<NewsDraftErrors>({});
   const [savedId, setSavedId] = useState<string | null>(draft?.id ?? null);
   const [confirming, setConfirming] = useState(false);
+  const [media, setMedia] = useState<MediaDraft>(() =>
+    draft ? mediaFromNews(draft) : emptyMedia(),
+  );
+  const [showLinkErrs, setShowLinkErrs] = useState(false);
+  const linkErrs = showLinkErrs ? linkErrors(media.links) : {};
 
   const authorName = useQuery({
     queryKey: ["author-name", authorEmail],
@@ -52,8 +64,7 @@ export function NewsComposerModal({
 
   const save = useMutation({
     mutationFn: () => {
-      // Une actualité existante garde son auteur, ses liens et son image.
-      const media = draft ? mediaFromNews(draft) : emptyMedia();
+      // Une actualité existante garde son auteur.
       return saveDraftNews({
         id: savedId ?? undefined,
         title: title.trim(),
@@ -83,7 +94,23 @@ export function NewsComposerModal({
   function validated() {
     const found = validateNewsDraft({ title, body });
     setErrors(found);
+    setShowLinkErrs(true);
+    if (Object.keys(linkErrors(media.links)).length) {
+      toast.error("Corrige les liens invalides avant d'enregistrer.");
+      return false;
+    }
     return Object.keys(found).length === 0;
+  }
+
+  /** Après un enregistrement, l'image envoyée devient l'image existante (évite un second envoi). */
+  async function syncSavedMedia(id: string) {
+    const { data } = await supabase.from("news").select("image_path").eq("id", id).maybeSingle();
+    setMedia((m) => ({
+      ...m,
+      file: null,
+      removeExisting: false,
+      existingPath: data?.image_path ?? null,
+    }));
   }
 
   function saveAsDraft() {
@@ -100,8 +127,9 @@ export function NewsComposerModal({
   function askToPublish() {
     if (!validated()) return;
     save.mutate(undefined, {
-      onSuccess: (id) => {
+      onSuccess: async (id) => {
         setSavedId(id);
+        await syncSavedMedia(id);
         void qc.invalidateQueries({ queryKey: ["news"] });
         setConfirming(true);
       },
@@ -143,6 +171,13 @@ export function NewsComposerModal({
               aria-invalid={!!errors.body}
             />
           </Field>
+          <NewsMediaEditor
+            value={media}
+            onChange={setMedia}
+            linkErrs={linkErrs}
+            disabled={busy}
+            title={title}
+          />
           <div className="flex flex-wrap items-center justify-end gap-sm">
             <button
               type="submit"
