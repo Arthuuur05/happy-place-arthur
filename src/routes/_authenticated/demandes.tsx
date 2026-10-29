@@ -1,62 +1,44 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import { AttachmentLink } from "@/components/attachment-link";
+import { useState } from "react";
+import { BlockerDetail } from "@/components/blocker-detail";
+import { canReadAttachment } from "@/components/dashboard-extras";
 import { PageError, PageLoading } from "@/components/page-states";
-import { SubmissionPreview } from "@/components/expandable-card";
 import { useSubmissionReview } from "@/components/submission-review";
-import { ValidatedSubmissions } from "@/components/dashboard-extras";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchMySubmissions, fetchSubmissions, timeAgo, type Submission } from "@/lib/dashboard";
+import { fetchAllBlockers, fetchAllSubmissions, type Blocker } from "@/lib/dashboard";
+import { shortDate } from "@/lib/dashboard-blocks";
+import {
+  buildRequestItems,
+  filterByTab,
+  KIND_LABELS,
+  REQUEST_TABS,
+  tabCounts,
+  type RequestItem,
+  type RequestTab,
+} from "@/lib/requests-tabs";
 
 export const Route = createFileRoute("/_authenticated/demandes")({
   head: () => ({ meta: [{ title: "Demandes — Happy Place" }] }),
   component: RequestsPage,
 });
 
-function SubmissionList({
-  items,
-  onRead,
-  empty,
-  actions,
-}: {
-  items: Submission[];
-  onRead: (s: Submission) => void;
-  empty: string;
-  actions?: (s: Submission) => ReactNode;
-}) {
-  if (items.length === 0)
-    return <p className="text-body-sm text-on-surface-variant italic">{empty}</p>;
-  return (
-    <ul className="space-y-xs">
-      {items.map((s) => (
-        <li key={s.id} className="min-w-0 space-y-xs border border-outline-variant bg-card p-sm">
-          <p className="font-label-sm text-label-sm uppercase text-on-surface-variant">
-            {s.author_name} • {s.team} • {s.status} • {timeAgo(s.created_at)}
-          </p>
-          <SubmissionPreview content={s.content} onOpen={() => onRead(s)} />
-          {actions && <AttachmentLink path={s.attachment_path} name={s.attachment_name} />}
-          {actions?.(s)}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function RequestsPage() {
   const { role, email } = Route.useRouteContext();
   const canReview = role === "admin" || role === "manager";
   const { setReading, approve, startReject, isPending, dialogs } = useSubmissionReview(canReview);
+  const [tab, setTab] = useState<RequestTab>("all");
+  const [blocker, setBlocker] = useState<Blocker | null>(null);
 
-  const mine = useQuery({
-    queryKey: ["submissions", "mine", email],
-    queryFn: () => fetchMySubmissions(email),
+  // La base ne renvoie que ce que le rôle a le droit de voir (RLS) : on n'ajoute aucun filtre ici.
+  const blockers = useQuery({
+    queryKey: ["blockers", "all"],
+    queryFn: fetchAllBlockers,
     retry: false,
   });
-  const pending = useQuery({
-    queryKey: ["submissions"],
-    queryFn: fetchSubmissions,
-    enabled: canReview,
+  const submissions = useQuery({
+    queryKey: ["submissions", "all"],
+    queryFn: fetchAllSubmissions,
     retry: false,
   });
   const myTeams = useQuery({
@@ -73,16 +55,30 @@ function RequestsPage() {
     },
   });
 
-  if (mine.isLoading || (canReview && pending.isLoading)) return <PageLoading />;
-  if (mine.isError || pending.isError || myTeams.isError) {
+  if (blockers.isLoading || submissions.isLoading) return <PageLoading />;
+  if (blockers.isError || submissions.isError || !blockers.data || !submissions.data) {
     return (
       <PageError
+        message="Impossible de charger les demandes."
         onRetry={() => {
-          void mine.refetch();
-          if (canReview) void pending.refetch();
-          if (role === "manager") void myTeams.refetch();
+          void blockers.refetch();
+          void submissions.refetch();
         }}
       />
+    );
+  }
+
+  const items = buildRequestItems(blockers.data, submissions.data);
+  const counts = tabCounts(items);
+  const shown = filterByTab(items, tab);
+
+  function open(item: RequestItem) {
+    if (item.kind === "blocker") return setBlocker(item.blocker);
+    const s = item.submission;
+    // La pièce jointe n'est lisible que par l'auteur, le manager de l'équipe et l'admin.
+    const ctx = { role, email, managerTeams: myTeams.data ?? [] };
+    setReading(
+      canReadAttachment(s, ctx) ? s : { ...s, attachment_path: null, attachment_name: null },
     );
   }
 
@@ -91,7 +87,7 @@ function RequestsPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-sm">
         <div className="space-y-1">
           <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">
-            Idées et demandes
+            Idées, demandes et points bloquants
           </p>
           <h1 className="font-headline-lg text-headline-lg text-primary">Demandes</h1>
         </div>
@@ -103,59 +99,90 @@ function RequestsPage() {
         </Link>
       </div>
 
-      {canReview && (
-        <section className="min-w-0 space-y-sm border border-outline-variant bg-surface-container-lowest p-md">
-          <h2 className="font-headline-sm text-headline-sm text-primary border-b border-outline-variant pb-sm">
-            À traiter ({pending.data?.length ?? 0})
-          </h2>
-          <SubmissionList
-            items={pending.data ?? []}
-            onRead={setReading}
-            empty="Aucune demande en attente de validation."
-            actions={(s) => (
-              <div className="flex gap-xs pt-xs">
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => startReject(s)}
-                  className="flex-1 py-1 border border-outline text-primary font-label-sm text-label-sm hover:bg-surface-container disabled:opacity-50"
-                >
-                  REFUSER
-                </button>
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => approve(s)}
-                  className="flex-1 py-1 bg-primary text-on-primary font-label-sm text-label-sm hover:opacity-90 disabled:opacity-50"
-                >
-                  VALIDER
-                </button>
-              </div>
-            )}
-          />
-        </section>
-      )}
-
-      <section className="min-w-0 space-y-sm border border-outline-variant bg-surface-container-lowest p-md">
-        <h2 className="font-headline-sm text-headline-sm text-primary border-b border-outline-variant pb-sm">
-          Mes demandes
-        </h2>
-        <SubmissionList
-          items={mine.data ?? []}
-          onRead={setReading}
-          empty="Vous n'avez soumis aucune demande."
-        />
-      </section>
-
-      <div className="bento-grid">
-        <ValidatedSubmissions
-          role={role}
-          email={email.toLowerCase()}
-          managerTeams={myTeams.data ?? []}
-          onRead={setReading}
-        />
+      <div
+        role="tablist"
+        aria-label="Type de demande"
+        className="flex flex-wrap gap-xs border-b border-outline-variant pb-sm"
+      >
+        {REQUEST_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-md py-xs border font-label-md text-label-md ${
+              tab === t.id
+                ? "bg-primary text-on-primary border-primary"
+                : "border-outline-variant text-on-surface-variant hover:bg-surface-container"
+            }`}
+          >
+            {t.label} ({counts[t.id]})
+          </button>
+        ))}
       </div>
 
+      {shown.length === 0 ? (
+        <p className="text-body-sm text-on-surface-variant italic">Rien pour le moment.</p>
+      ) : (
+        <ul role="tabpanel" className="space-y-xs">
+          {shown.map((item) => {
+            const reviewable =
+              canReview && item.kind === "submission" && item.status === "en attente";
+            return (
+              <li
+                key={`${item.kind}-${item.id}`}
+                className="min-w-0 border border-outline-variant bg-surface-container-lowest"
+              >
+                <button
+                  type="button"
+                  onClick={() => open(item)}
+                  aria-haspopup="dialog"
+                  className="w-full min-w-0 space-y-1 p-sm text-left hover:bg-surface-container focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <p className="flex flex-wrap items-center gap-xs font-label-sm text-label-sm uppercase text-on-surface-variant">
+                    <span className="border border-outline-variant px-xs">
+                      {KIND_LABELS[item.kind]}
+                    </span>
+                    <span className="bg-surface-container-highest px-xs">{item.status}</span>
+                    <span>{shortDate(item.date)}</span>
+                  </p>
+                  <p className="font-body-md text-primary font-bold wrap-anywhere">{item.title}</p>
+                  <p className="font-label-sm text-label-sm uppercase text-on-surface-variant wrap-anywhere">
+                    {item.owner}
+                  </p>
+                </button>
+                {reviewable && item.kind === "submission" && (
+                  <div className="flex gap-xs border-t border-outline-variant p-sm">
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => startReject(item.submission)}
+                      className="flex-1 py-1 border border-outline text-primary font-label-sm text-label-sm hover:bg-surface-container disabled:opacity-50"
+                    >
+                      REFUSER
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => approve(item.submission)}
+                      className="flex-1 py-1 bg-primary text-on-primary font-label-sm text-label-sm hover:opacity-90 disabled:opacity-50"
+                    >
+                      VALIDER
+                    </button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <BlockerDetail
+        blocker={blocker}
+        isAdmin={role === "admin"}
+        onClose={() => setBlocker(null)}
+      />
       {dialogs}
     </main>
   );

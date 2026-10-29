@@ -7,13 +7,19 @@ export function PageLoading() {
   );
 }
 
-export function PageError({ onRetry }: { onRetry: () => void }) {
+export function PageError({
+  onRetry,
+  message = "Impossible de charger la page.",
+}: {
+  onRetry: () => void;
+  message?: string;
+}) {
   return (
     <div
       role="alert"
       className="m-sm md:m-md space-y-sm border border-error bg-surface-container-lowest p-md"
     >
-      <p className="font-body-md text-body-md text-error">Impossible de charger la page.</p>
+      <p className="font-body-md text-body-md text-error">{message}</p>
       <button
         type="button"
         onClick={onRetry}
