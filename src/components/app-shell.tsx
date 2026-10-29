@@ -11,7 +11,7 @@ function SideNav({ role }: { role: AppRole }) {
   return (
     <nav
       aria-label="Navigation principale"
-      className="flex shrink-0 gap-xs overflow-x-auto border-b border-outline-variant bg-surface-container-lowest p-xs md:w-60 md:flex-col md:overflow-visible md:border-b-0 md:border-r md:p-sm"
+      className="flex shrink-0 gap-xs overflow-x-auto border-b border-outline-variant bg-surface-container-lowest p-sm md:w-60 md:flex-col md:overflow-visible md:border-b-0 md:border-r"
     >
       {visibleNavItems(role).map((item) => {
         const active = isNavActive(item.to, pathname);
