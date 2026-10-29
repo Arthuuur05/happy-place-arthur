@@ -17,9 +17,9 @@ export function BrandHeader() {
   }, []);
 
   return (
-    <header className="border-b border-outline-variant bg-surface-container-lowest">
+    <header className="sticky top-0 z-40 border-b border-outline-variant bg-surface-container-lowest">
       {/* Pleine largeur, même marge (2 rem) à gauche et à droite ; c'est aussi le retrait du texte du menu latéral. */}
-      <div className="flex min-h-16 w-full items-center justify-between gap-md px-lg py-xs">
+      <div className="flex h-16 w-full items-center justify-between gap-md px-lg">
         <Link
           to="/"
           className="flex min-w-0 items-center gap-sm"
