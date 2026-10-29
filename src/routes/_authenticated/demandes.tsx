@@ -22,6 +22,10 @@ import {
 
 export const Route = createFileRoute("/_authenticated/demandes")({
   head: () => ({ meta: [{ title: "Demandes — Happy Place" }] }),
+  // ?tab=blockers|submissions ouvre directement l'onglet (liens « Voir tout » du dashboard)
+  validateSearch: (search: Record<string, unknown>): { tab?: RequestTab } => ({
+    tab: REQUEST_TABS.some((t) => t.id === search.tab) ? (search.tab as RequestTab) : undefined,
+  }),
   component: RequestsPage,
 });
 
@@ -29,7 +33,8 @@ function RequestsPage() {
   const { role, email } = Route.useRouteContext();
   const canReview = role === "admin" || role === "manager";
   const { setReading, approve, startReject, isPending, dialogs } = useSubmissionReview(canReview);
-  const [tab, setTab] = useState<RequestTab>("all");
+  const navigate = Route.useNavigate();
+  const tab = Route.useSearch().tab ?? "all";
   const [blocker, setBlocker] = useState<Blocker | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const isAdmin = role === "admin";
@@ -118,7 +123,7 @@ function RequestsPage() {
             type="button"
             role="tab"
             aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => void navigate({ search: { tab: t.id }, replace: true })}
             className={`px-md py-xs border font-label-md text-label-md ${
               tab === t.id
                 ? "bg-primary text-on-primary border-primary"

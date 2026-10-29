@@ -5,7 +5,7 @@ import { fetchSubmissions, isSubmissionPending, type Submission } from "@/lib/da
 import { DASHBOARD_BLOCK_SIZE, mostRecent, requestTitle, shortDate } from "@/lib/dashboard-blocks";
 
 /**
- * Bloc « Demandes en attente (n) » : les 3 plus récentes parmi celles que l'utilisateur peut voir
+ * Bloc « Soumissions en attente (n) » : les 3 plus récentes parmi celles que l'utilisateur peut voir
  * (la base filtre déjà par rôle et par équipe). Le clic ouvre le détail, où l'on valide ou refuse.
  */
 export function PendingRequestsBlock({ onOpen }: { onOpen: (s: Submission) => void }) {
@@ -27,13 +27,14 @@ export function PendingRequestsBlock({ onOpen }: { onOpen: (s: Submission) => vo
   }
 
   return (
-    <section className="col-span-12 lg:col-span-5 min-w-0 bg-surface-container-lowest border border-outline-variant p-md flex flex-col gap-md">
+    <section className="col-span-12 lg:col-span-6 min-w-0 bg-surface-container-lowest border border-outline-variant p-md flex flex-col gap-md">
       <div className="flex items-center justify-between gap-sm border-b border-outline-variant pb-sm">
         <h2 className="font-headline-sm text-headline-sm text-primary">
-          Demandes en attente{q.data ? ` (${total})` : ""}
+          Soumissions en attente{q.data ? ` (${total})` : ""}
         </h2>
         <Link
           to="/demandes"
+          search={{ tab: "submissions" }}
           className="font-label-sm text-label-sm uppercase text-primary underline-offset-2 hover:underline"
         >
           Voir tout
@@ -65,7 +66,7 @@ export function PendingRequestsBlock({ onOpen }: { onOpen: (s: Submission) => vo
 
       {q.data && total === 0 && (
         <p className="text-body-sm text-on-surface-variant italic">
-          Aucune demande en attente. Tout est à jour.
+          Aucune soumission en attente. Tout est à jour.
         </p>
       )}
 

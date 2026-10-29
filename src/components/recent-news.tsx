@@ -17,7 +17,7 @@ export function RecentNewsBlock({ canWrite, email }: { canWrite: boolean; email:
   const published = mostRecent((q.data ?? []).filter((n) => n.status === "publiée"));
 
   return (
-    <section className="col-span-12 lg:col-span-7 min-w-0 bg-surface-container-lowest border border-outline-variant p-md flex flex-col gap-md">
+    <section className="col-span-12 min-w-0 bg-surface-container-lowest border border-outline-variant p-md flex flex-col gap-md">
       <div className="flex flex-wrap items-center justify-between gap-sm border-b border-outline-variant pb-sm">
         <h2 className="font-headline-sm text-headline-sm text-primary">Actualités récentes</h2>
         <div className="flex items-center gap-sm">

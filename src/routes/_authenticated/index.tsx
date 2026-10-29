@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,18 +8,16 @@ import { Linkify } from "@/components/linkify";
 import { useSubmissionReview } from "@/components/submission-review";
 import { DepartureNotices } from "@/components/departure-notices";
 import { PendingRequestsBlock } from "@/components/pending-requests";
+import { RecentBlockersBlock } from "@/components/recent-blockers";
 import { RecentNewsBlock } from "@/components/recent-news";
 import { MetricsDialog } from "@/components/metrics-dialog";
-import { BlockerArchive, ValidatedSubmissions } from "@/components/dashboard-extras";
 import { Button } from "@/components/ui/button";
 import {
-  fetchBlockers,
   fetchMetrics,
   deltaText,
   fetchMySubmissions,
   exportMyRecentSubmissions,
   timeAgo,
-  updateBlockerStatus,
   updateMetric,
   TREND_LABELS,
   type Metric,
@@ -90,19 +87,6 @@ function ManagerSpace() {
   const { setReading, dialogs: reviewDialogs } = useSubmissionReview(canReview);
   const myEmail = (email ?? "").toLowerCase();
   const [nps, setNps] = useState<string>("");
-  const myTeams = useQuery({
-    queryKey: ["manager_teams", "mine", email],
-    enabled: role === "manager" && !!email,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("manager_teams")
-        .select("team, allowed_users!inner(email)")
-        .eq("allowed_users.email", (email ?? "").toLowerCase());
-      if (error) throw error;
-      return (data ?? []).map((t) => t.team).sort();
-    },
-  });
-  const [archiveOpen, setArchiveOpen] = useState(false);
   const [metricsOpen, setMetricsOpen] = useState(false);
 
   const mine = useQuery({
@@ -111,7 +95,6 @@ function ManagerSpace() {
     enabled: !!email,
     retry: false,
   });
-  const blockers = useQuery({ queryKey: ["blockers"], queryFn: fetchBlockers, retry: false });
   const metrics = useQuery({ queryKey: ["metrics"], queryFn: fetchMetrics, retry: false });
   const onError = (e: unknown) => toast.error((e as Error).message);
 
@@ -129,12 +112,6 @@ function ManagerSpace() {
         `${count} soumission${count > 1 ? "s" : ""} exportée${count > 1 ? "s" : ""} au format CSV.`,
       );
     },
-    onError,
-  });
-
-  const setBlocker = useMutation({
-    mutationFn: updateBlockerStatus,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["blockers"] }),
     onError,
   });
 
@@ -169,8 +146,112 @@ function ManagerSpace() {
         </div>
 
         <div className="bento-grid">
-          <PendingRequestsBlock onOpen={setReading} />
           <RecentNewsBlock canWrite={canWriteNews} email={myEmail} />
+          <PendingRequestsBlock onOpen={setReading} />
+          <RecentBlockersBlock isAdmin={isAdmin} />
+
+          {/* Performance Hub */}
+          <section className="col-span-12 grid min-w-0 overflow-hidden bg-surface-container-lowest border border-outline-variant md:grid-cols-[2fr_3fr]">
+            <div className="relative min-h-48 border-b border-outline-variant md:min-h-0 md:border-b-0 md:border-r">
+              <img
+                src={PERF_IMAGE}
+                alt="Graphiques minimalistes à barres et à lignes dans un tableau de bord anthracite et blanc"
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            </div>
+            <div className="flex min-w-0 flex-col p-md">
+              <div className="flex items-center justify-between mb-md">
+                <h2 className="font-headline-sm text-headline-sm text-primary">Indicateurs</h2>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-label="Modifier les indicateurs"
+                    title="Modifier les indicateurs"
+                    onClick={() => setMetricsOpen(true)}
+                    className="text-on-surface-variant hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <Icon name="settings" />
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-sm mb-md">
+                <div className="p-sm bg-card border border-outline-variant text-center">
+                  <p className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+                    {metricLabel(metricOf(metrics.data, "training_kpi"), "Taux de placement")}
+                  </p>
+                  <p className="font-display text-[32px] text-primary">
+                    {formatMetric(metricOf(metrics.data, "training_kpi"), "—")}
+                  </p>
+                  <p className="text-[10px] text-on-surface-variant font-label-sm">
+                    {trendText(metricOf(metrics.data, "training_kpi"))}
+                    {deltaText(metricOf(metrics.data, "training_kpi")) &&
+                      ` · ${deltaText(metricOf(metrics.data, "training_kpi"))}`}
+                  </p>
+                </div>
+                <div className="p-sm bg-card border border-outline-variant text-center">
+                  <p className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+                    {metricLabel(metricOf(metrics.data, "active_users"), "Missions actives")}
+                  </p>
+                  <p className="font-display text-[32px] text-primary">
+                    {formatMetric(metricOf(metrics.data, "active_users"), "—")}
+                  </p>
+                  <p className="text-[10px] text-on-surface-variant font-label-sm">
+                    {trendText(metricOf(metrics.data, "active_users"))}
+                    {deltaText(metricOf(metrics.data, "active_users")) &&
+                      ` · ${deltaText(metricOf(metrics.data, "active_users"))}`}
+                  </p>
+                </div>
+              </div>
+              <div className="mb-md">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={exportReport.isPending}
+                  onClick={() => exportReport.mutate()}
+                  className="h-auto rounded-none border-outline bg-surface px-md py-xs font-label-md text-label-md text-primary shadow-none hover:bg-surface-container"
+                >
+                  <Icon name="file_download" />{" "}
+                  {exportReport.isPending ? "EXPORT EN COURS…" : "EXPORTER LE RAPPORT"}
+                </Button>
+              </div>
+              {isAdmin && (
+                <div className="space-y-xs">
+                  <label className="font-label-sm text-label-sm text-on-surface-variant block">
+                    MODIFIER LE NPS CANDIDATS
+                  </label>
+                  <div className="flex gap-xs">
+                    <input
+                      className="flex-grow bg-card border border-outline-variant p-xs font-label-md focus:outline-none focus:border-primary"
+                      type="number"
+                      value={nps !== "" ? nps : (npsMetric?.value ?? "")}
+                      onChange={(e) => setNps(e.target.value)}
+                    />
+                    <button
+                      onClick={() =>
+                        saveMetric.mutate({
+                          key: "nps",
+                          value: Number(nps !== "" ? nps : (npsMetric?.value ?? 0)),
+                        })
+                      }
+                      disabled={saveMetric.isPending}
+                      className="bg-primary text-on-primary px-sm font-label-md text-label-md disabled:opacity-50"
+                    >
+                      METTRE À JOUR
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-on-surface-variant italic">
+                    {npsMetric
+                      ? `Tendance : ${trendText(npsMetric)}${
+                          deltaText(npsMetric) ? ` · ${deltaText(npsMetric)}` : ""
+                        }`
+                      : "Mis à jour à partir des retours candidats."}
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
 
           {/* Mes soumissions */}
           {mine.data && mine.data.length > 0 && (
@@ -202,196 +283,8 @@ function ManagerSpace() {
               </div>
             </section>
           )}
-
-          <ValidatedSubmissions
-            role={role}
-            email={myEmail}
-            managerTeams={myTeams.data ?? []}
-            onRead={setReading}
-          />
-
-          {/* Points Bloquants */}
-          <section className="col-span-12 md:col-span-7 bg-surface-container-lowest border border-outline-variant p-md">
-            <div className="flex items-center justify-between mb-md">
-              <div className="flex items-center gap-sm">
-                <h2 className="font-headline-sm text-headline-sm text-primary">Points Bloquants</h2>
-                <span className="text-xs bg-error-container text-on-error-container px-xs py-1 font-label-sm">
-                  PRIORITÉ HAUTE
-                </span>
-              </div>
-              <button
-                type="button"
-                aria-haspopup="dialog"
-                onClick={() => setArchiveOpen(true)}
-                className="text-primary font-label-sm text-label-sm underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                VOIR L'ARCHIVE
-              </button>
-            </div>
-            <div className="space-y-sm">
-              {blockers.isError && (
-                <p className="text-body-sm text-error">Les points bloquants sont indisponibles.</p>
-              )}
-              {blockers.data?.length === 0 && (
-                <p className="text-body-sm text-on-surface-variant italic">
-                  Aucun point bloquant en cours.
-                </p>
-              )}
-              {blockers.data?.map((b) => {
-                const critical = b.severity === "critical";
-                return (
-                  <div
-                    key={b.id}
-                    className={`${critical ? "accent-bar " : ""}bg-card border border-outline-variant p-sm flex items-start justify-between`}
-                  >
-                    <div className="flex gap-md">
-                      <Icon
-                        name={critical ? "error" : "warning"}
-                        className={
-                          critical
-                            ? "text-error mt-1 [font-variation-settings:'FILL'_1]"
-                            : "text-secondary mt-1"
-                        }
-                      />
-                      <div>
-                        <p className="font-body-md text-primary font-bold">{b.title}</p>
-                        <p className="text-body-sm text-on-surface-variant">{b.description}</p>
-                        <div className="flex items-center gap-sm mt-xs">
-                          <span className="text-[11px] font-label-sm bg-surface-container-highest px-xs py-0.5">
-                            {b.department}
-                          </span>
-                          <span className="text-[11px] font-label-sm text-on-surface-variant">
-                            Mis à jour {timeAgo(b.updated_at)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <select
-                      aria-label={`Statut de ${b.title}`}
-                      value={b.status}
-                      disabled={!isAdmin}
-                      onChange={(e) => setBlocker.mutate({ id: b.id, status: e.target.value })}
-                      className={`bg-transparent border-none text-xs font-label-sm focus:outline-none cursor-pointer ${critical ? "text-error" : "text-on-surface-variant"}`}
-                    >
-                      <option>OUVERT</option>
-                      <option>EN COURS</option>
-                      <option>SURVEILLANCE</option>
-                      <option
-                        disabled={b.status === "OUVERT"}
-                        title={b.status === "OUVERT" ? "Passe d'abord par EN COURS" : undefined}
-                      >
-                        RÉSOLU
-                      </option>
-                    </select>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Performance Hub */}
-          <section className="col-span-12 md:col-span-5 bg-surface-container-lowest border border-outline-variant p-md flex flex-col">
-            <div className="flex items-center justify-between mb-md">
-              <h2 className="font-headline-sm text-headline-sm text-primary">Indicateurs</h2>
-              {isAdmin && (
-                <button
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-label="Modifier les indicateurs"
-                  title="Modifier les indicateurs"
-                  onClick={() => setMetricsOpen(true)}
-                  className="text-on-surface-variant hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  <Icon name="settings" />
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-sm mb-md">
-              <div className="p-sm bg-card border border-outline-variant text-center">
-                <p className="font-label-sm text-label-sm text-on-surface-variant uppercase">
-                  {metricLabel(metricOf(metrics.data, "training_kpi"), "Taux de placement")}
-                </p>
-                <p className="font-display text-[32px] text-primary">
-                  {formatMetric(metricOf(metrics.data, "training_kpi"), "—")}
-                </p>
-                <p className="text-[10px] text-on-surface-variant font-label-sm">
-                  {trendText(metricOf(metrics.data, "training_kpi"))}
-                  {deltaText(metricOf(metrics.data, "training_kpi")) &&
-                    ` · ${deltaText(metricOf(metrics.data, "training_kpi"))}`}
-                </p>
-              </div>
-              <div className="p-sm bg-card border border-outline-variant text-center">
-                <p className="font-label-sm text-label-sm text-on-surface-variant uppercase">
-                  {metricLabel(metricOf(metrics.data, "active_users"), "Missions actives")}
-                </p>
-                <p className="font-display text-[32px] text-primary">
-                  {formatMetric(metricOf(metrics.data, "active_users"), "—")}
-                </p>
-                <p className="text-[10px] text-on-surface-variant font-label-sm">
-                  {trendText(metricOf(metrics.data, "active_users"))}
-                  {deltaText(metricOf(metrics.data, "active_users")) &&
-                    ` · ${deltaText(metricOf(metrics.data, "active_users"))}`}
-                </p>
-              </div>
-            </div>
-            <div className="mb-md">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={exportReport.isPending}
-                onClick={() => exportReport.mutate()}
-                className="h-auto rounded-none border-outline bg-surface px-md py-xs font-label-md text-label-md text-primary shadow-none hover:bg-surface-container"
-              >
-                <Icon name="file_download" />{" "}
-                {exportReport.isPending ? "EXPORT EN COURS…" : "EXPORTER LE RAPPORT"}
-              </Button>
-            </div>
-            {isAdmin && (
-              <div className="space-y-xs">
-                <label className="font-label-sm text-label-sm text-on-surface-variant block">
-                  MODIFIER LE NPS CANDIDATS
-                </label>
-                <div className="flex gap-xs">
-                  <input
-                    className="flex-grow bg-card border border-outline-variant p-xs font-label-md focus:outline-none focus:border-primary"
-                    type="number"
-                    value={nps !== "" ? nps : (npsMetric?.value ?? "")}
-                    onChange={(e) => setNps(e.target.value)}
-                  />
-                  <button
-                    onClick={() =>
-                      saveMetric.mutate({
-                        key: "nps",
-                        value: Number(nps !== "" ? nps : (npsMetric?.value ?? 0)),
-                      })
-                    }
-                    disabled={saveMetric.isPending}
-                    className="bg-primary text-on-primary px-sm font-label-md text-label-md disabled:opacity-50"
-                  >
-                    METTRE À JOUR
-                  </button>
-                </div>
-                <p className="text-[10px] text-on-surface-variant italic">
-                  {npsMetric
-                    ? `Tendance : ${trendText(npsMetric)}${
-                        deltaText(npsMetric) ? ` · ${deltaText(npsMetric)}` : ""
-                      }`
-                    : "Mis à jour à partir des retours candidats."}
-                </p>
-              </div>
-            )}
-            <div className="mt-auto pt-md">
-              <img
-                src={PERF_IMAGE}
-                alt="Graphiques minimalistes à barres et à lignes dans un tableau de bord anthracite et blanc"
-                loading="lazy"
-                className="w-full h-24 object-cover border border-outline-variant"
-              />
-            </div>
-          </section>
         </div>
       </main>
-      <BlockerArchive open={archiveOpen} onClose={() => setArchiveOpen(false)} />
       {reviewDialogs}
       {isAdmin && <MetricsDialog open={metricsOpen} onClose={() => setMetricsOpen(false)} />}
     </div>
