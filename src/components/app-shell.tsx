@@ -46,7 +46,8 @@ export function AppShell({ role, children }: { role: AppRole; children: ReactNod
   return (
     <div className="flex min-h-screen flex-col bg-background text-on-surface font-body-md">
       <BrandHeader />
-      <div className="mx-auto flex w-full max-w-interface flex-1 flex-col md:flex-row">
+      {/* Pleine largeur : le menu colle au bord gauche ; chaque page centre elle-même son contenu. */}
+      <div className="flex w-full flex-1 flex-col md:flex-row">
         <SideNav role={role} />
         <div className="min-w-0 flex-1">{children}</div>
       </div>
