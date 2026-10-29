@@ -1,8 +1,8 @@
-import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { BrandHeader } from "@/components/brand-header";
+import { denyAccess } from "@/lib/access";
 import { processAttachmentDeletionQueue } from "@/lib/dashboard";
 
 export const Route = createFileRoute("/_authenticated/manage")({
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/manage")({
     ],
   }),
   beforeLoad: ({ context }) => {
-    if (context.role !== "admin") throw redirect({ to: "/" });
+    if (context.role !== "admin") denyAccess();
   },
   component: ManageLayout,
 });
@@ -50,8 +50,7 @@ function ManageLayout() {
       .finally(() => qc.invalidateQueries({ queryKey: ["attachment_deletion_queue"] }));
   }, [qc]);
   return (
-    <div className="bg-background text-on-surface font-body-md min-h-screen">
-      <BrandHeader />
+    <div className="bg-background text-on-surface font-body-md">
       <main className="w-full max-w-interface mx-auto p-sm md:p-md space-y-md">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-sm">
           <div className="space-y-1">

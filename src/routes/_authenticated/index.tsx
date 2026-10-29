@@ -6,7 +6,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ErrorSummary, Field, FormActions, Modal, TextArea, TextInput } from "@/components/manage/crud-ui";
 import { rejectionSchema, submissionSchema, validate, type FieldErrors } from "@/lib/manage-schemas";
-import { BrandHeader } from "@/components/brand-header";
 import { AttachmentLink } from "@/components/attachment-link";
 import { CharCounter, SubmissionPreview, rejectionErrorMessage } from "@/components/expandable-card";
 import { Linkify } from "@/components/linkify";
@@ -274,8 +273,7 @@ function ManagerSpace() {
   }
 
   return (
-    <div className="bg-background text-on-surface font-body-md min-h-screen flex flex-col">
-      <BrandHeader />
+    <div className="bg-background text-on-surface font-body-md flex flex-col">
       <main className="flex-grow w-full max-w-interface mx-auto p-sm md:p-md space-y-md">
         {email && <DepartureNotices email={email} />}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-sm mb-lg">

@@ -1,5 +1,14 @@
-import { createFileRoute, isRedirect, Outlet, redirect } from "@tanstack/react-router";
+import {
+  CatchBoundary,
+  createFileRoute,
+  isRedirect,
+  Outlet,
+  redirect,
+  useRouter,
+} from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { AppShell } from "@/components/app-shell";
+import { PageError } from "@/components/page-states";
 import { fetchOwnRole } from "@/lib/auth";
 
 // Version élèves : un compte connecté sans rôle est envoyé vers /choisir-role
@@ -21,5 +30,28 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/auth" });
     }
   },
-  component: () => <Outlet />,
+  component: AuthenticatedLayout,
 });
+
+function AuthenticatedLayout() {
+  const { role } = Route.useRouteContext();
+  const router = useRouter();
+  return (
+    <AppShell role={role}>
+      {/* Une page qui plante garde le menu visible ; changer de page réinitialise l'erreur. */}
+      <CatchBoundary
+        getResetKey={() => router.state.location.pathname}
+        errorComponent={({ reset }) => (
+          <PageError
+            onRetry={() => {
+              reset();
+              void router.invalidate();
+            }}
+          />
+        )}
+      >
+        <Outlet />
+      </CatchBoundary>
+    </AppShell>
+  );
+}

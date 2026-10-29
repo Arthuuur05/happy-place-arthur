@@ -14,7 +14,11 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ChoisirRoleRouteImport } from './routes/choisir-role'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedActualitesRouteImport } from './routes/_authenticated/actualites'
+import { Route as AuthenticatedDemandesRouteImport } from './routes/_authenticated/demandes'
+import { Route as AuthenticatedEquipesRouteImport } from './routes/_authenticated/equipes'
 import { Route as AuthenticatedManageRouteImport } from './routes/_authenticated/manage'
+import { Route as AuthenticatedProfilRouteImport } from './routes/_authenticated/profil'
 import { Route as AuthenticatedManageIndexRouteImport } from './routes/_authenticated/manage.index'
 import { Route as AuthenticatedManageBlockersRouteImport } from './routes/_authenticated/manage.blockers'
 import { Route as AuthenticatedManageMetricsRouteImport } from './routes/_authenticated/manage.metrics'
@@ -46,9 +50,29 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedActualitesRoute = AuthenticatedActualitesRouteImport.update({
+  id: '/actualites',
+  path: '/actualites',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDemandesRoute = AuthenticatedDemandesRouteImport.update({
+  id: '/demandes',
+  path: '/demandes',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedEquipesRoute = AuthenticatedEquipesRouteImport.update({
+  id: '/equipes',
+  path: '/equipes',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedManageRoute = AuthenticatedManageRouteImport.update({
   id: '/manage',
   path: '/manage',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProfilRoute = AuthenticatedProfilRouteImport.update({
+  id: '/profil',
+  path: '/profil',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedManageIndexRoute =
@@ -92,7 +116,11 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/choisir-role': typeof ChoisirRoleRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/actualites': typeof AuthenticatedActualitesRoute
+  '/demandes': typeof AuthenticatedDemandesRoute
+  '/equipes': typeof AuthenticatedEquipesRoute
   '/manage': typeof AuthenticatedManageRouteWithChildren
+  '/profil': typeof AuthenticatedProfilRoute
   '/manage/blockers': typeof AuthenticatedManageBlockersRoute
   '/manage/metrics': typeof AuthenticatedManageMetricsRoute
   '/manage/news': typeof AuthenticatedManageNewsRoute
@@ -104,6 +132,10 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/choisir-role': typeof ChoisirRoleRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/actualites': typeof AuthenticatedActualitesRoute
+  '/demandes': typeof AuthenticatedDemandesRoute
+  '/equipes': typeof AuthenticatedEquipesRoute
+  '/profil': typeof AuthenticatedProfilRoute
   '/': typeof AuthenticatedIndexRoute
   '/manage/blockers': typeof AuthenticatedManageBlockersRoute
   '/manage/metrics': typeof AuthenticatedManageMetricsRoute
@@ -118,7 +150,11 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/choisir-role': typeof ChoisirRoleRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/_authenticated/actualites': typeof AuthenticatedActualitesRoute
+  '/_authenticated/demandes': typeof AuthenticatedDemandesRoute
+  '/_authenticated/equipes': typeof AuthenticatedEquipesRoute
   '/_authenticated/manage': typeof AuthenticatedManageRouteWithChildren
+  '/_authenticated/profil': typeof AuthenticatedProfilRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/manage/blockers': typeof AuthenticatedManageBlockersRoute
   '/_authenticated/manage/metrics': typeof AuthenticatedManageMetricsRoute
@@ -134,7 +170,11 @@ export interface FileRouteTypes {
     | '/auth'
     | '/choisir-role'
     | '/sitemap.xml'
+    | '/actualites'
+    | '/demandes'
+    | '/equipes'
     | '/manage'
+    | '/profil'
     | '/manage/blockers'
     | '/manage/metrics'
     | '/manage/news'
@@ -146,6 +186,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/choisir-role'
     | '/sitemap.xml'
+    | '/actualites'
+    | '/demandes'
+    | '/equipes'
+    | '/profil'
     | '/'
     | '/manage/blockers'
     | '/manage/metrics'
@@ -159,7 +203,11 @@ export interface FileRouteTypes {
     | '/auth'
     | '/choisir-role'
     | '/sitemap.xml'
+    | '/_authenticated/actualites'
+    | '/_authenticated/demandes'
+    | '/_authenticated/equipes'
     | '/_authenticated/manage'
+    | '/_authenticated/profil'
     | '/_authenticated/'
     | '/_authenticated/manage/blockers'
     | '/_authenticated/manage/metrics'
@@ -213,11 +261,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/actualites': {
+      id: '/_authenticated/actualites'
+      path: '/actualites'
+      fullPath: '/actualites'
+      preLoaderRoute: typeof AuthenticatedActualitesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/demandes': {
+      id: '/_authenticated/demandes'
+      path: '/demandes'
+      fullPath: '/demandes'
+      preLoaderRoute: typeof AuthenticatedDemandesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/equipes': {
+      id: '/_authenticated/equipes'
+      path: '/equipes'
+      fullPath: '/equipes'
+      preLoaderRoute: typeof AuthenticatedEquipesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/manage': {
       id: '/_authenticated/manage'
       path: '/manage'
       fullPath: '/manage'
       preLoaderRoute: typeof AuthenticatedManageRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/profil': {
+      id: '/_authenticated/profil'
+      path: '/profil'
+      fullPath: '/profil'
+      preLoaderRoute: typeof AuthenticatedProfilRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/manage/': {
@@ -287,12 +363,20 @@ const AuthenticatedManageRouteWithChildren =
   AuthenticatedManageRoute._addFileChildren(AuthenticatedManageRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedActualitesRoute: typeof AuthenticatedActualitesRoute
+  AuthenticatedDemandesRoute: typeof AuthenticatedDemandesRoute
+  AuthenticatedEquipesRoute: typeof AuthenticatedEquipesRoute
   AuthenticatedManageRoute: typeof AuthenticatedManageRouteWithChildren
+  AuthenticatedProfilRoute: typeof AuthenticatedProfilRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedActualitesRoute: AuthenticatedActualitesRoute,
+  AuthenticatedDemandesRoute: AuthenticatedDemandesRoute,
+  AuthenticatedEquipesRoute: AuthenticatedEquipesRoute,
   AuthenticatedManageRoute: AuthenticatedManageRouteWithChildren,
+  AuthenticatedProfilRoute: AuthenticatedProfilRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 
