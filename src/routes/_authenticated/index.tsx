@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { signOut } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -12,12 +11,7 @@ import {
   TextArea,
   TextInput,
 } from "@/components/manage/crud-ui";
-import {
-  rejectionSchema,
-  submissionSchema,
-  validate,
-  type FieldErrors,
-} from "@/lib/manage-schemas";
+import { submissionSchema, validate, type FieldErrors } from "@/lib/manage-schemas";
 import { AttachmentLink } from "@/components/attachment-link";
 import {
   CharCounter,
@@ -25,7 +19,7 @@ import {
   rejectionErrorMessage,
 } from "@/components/expandable-card";
 import { Linkify } from "@/components/linkify";
-import { SubmissionReader } from "@/components/submission-reader";
+import { useSubmissionReview } from "@/components/submission-review";
 import { DepartureNotices } from "@/components/departure-notices";
 import { PendingRequestsBlock } from "@/components/pending-requests";
 import { RecentNewsBlock } from "@/components/recent-news";
@@ -37,9 +31,7 @@ import {
   deltaText,
   fetchMySubmissions,
   exportMyRecentSubmissions,
-  REJECTION_CATEGORIES,
   type Submission,
-  reviewSubmission,
   submitIdea,
   timeAgo,
   updateBlockerStatus,
@@ -110,6 +102,7 @@ function ManagerSpace() {
   const isAdmin = role === "admin";
   const canReview = role === "admin" || role === "manager";
   const canWriteNews = canReview;
+  const { setReading, dialogs: reviewDialogs } = useSubmissionReview(canReview);
   const myEmail = (email ?? "").toLowerCase();
   const [nps, setNps] = useState<string>("");
   const [submissionForm, setSubmissionForm] = useState<SubmissionInput | null>(null);
@@ -127,11 +120,7 @@ function ManagerSpace() {
     },
   });
   const [attachment, setAttachment] = useState<File | null>(null);
-  const [rejecting, setRejecting] = useState<Submission | null>(null);
-  const [reading, setReading] = useState<Submission | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [rejectForm, setRejectForm] = useState({ rejection_category: "", rejection_note: "" });
-  const [rejectErrors, setRejectErrors] = useState<FieldErrors>({});
 
   const mine = useQuery({
     queryKey: ["submissions", "mine", email],
@@ -159,27 +148,6 @@ function ManagerSpace() {
     },
     onError,
   });
-
-  const review = useMutation({
-    mutationFn: reviewSubmission,
-    onSuccess: (_d, vars) => {
-      if (vars.status === "refusée") {
-        setRejecting(null);
-        toast.success("Soumission refusée");
-      } else {
-        setReading((r) => (r?.id === vars.id ? null : r));
-      }
-      qc.invalidateQueries({ queryKey: ["submissions"] });
-    },
-    onError: (e: unknown) => toast.error(rejectionErrorMessage(e)),
-  });
-
-  function startReject(s: Submission) {
-    setReading(null);
-    setRejecting(s);
-    setRejectErrors({});
-    setRejectForm({ rejection_category: "", rejection_note: "" });
-  }
 
   const submit = useMutation({
     mutationFn: (input: SubmissionInput) =>
@@ -266,12 +234,6 @@ function ManagerSpace() {
             <span className="font-label-sm text-label-sm text-on-surface-variant">
               {email} · {roleLabel}
             </span>
-            <button
-              onClick={() => signOut()}
-              className="flex items-center gap-xs px-md py-xs border border-outline bg-surface text-primary font-label-md text-label-md hover:bg-surface-container"
-            >
-              <Icon name="logout" /> DÉCONNEXION
-            </button>
             {isAdmin && (
               <Link
                 to="/manage/news"
@@ -496,67 +458,7 @@ function ManagerSpace() {
         </div>
       </main>
       <BlockerArchive open={archiveOpen} onClose={() => setArchiveOpen(false)} />
-      <SubmissionReader
-        submission={reading}
-        onClose={() => setReading(null)}
-        onReject={
-          reading && canReview && reading.status === "en attente"
-            ? () => startReject(reading)
-            : undefined
-        }
-        onApprove={
-          reading && canReview && reading.status === "en attente"
-            ? () => review.mutate({ id: reading.id, status: "validée" })
-            : undefined
-        }
-        approving={review.isPending}
-      />
-      {rejecting && (
-        <Modal title="Refuser la soumission" onClose={() => setRejecting(null)}>
-          <form
-            noValidate
-            className="space-y-sm"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const res = validate(rejectionSchema, rejectForm);
-              if (!res.ok) return setRejectErrors(res.errors);
-              setRejectErrors({});
-              review.mutate({ id: rejecting.id, status: "refusée", ...res.data });
-            }}
-          >
-            <p className="max-h-48 overflow-y-auto border border-outline-variant bg-surface-container-low p-xs text-body-sm italic text-on-surface-variant whitespace-pre-line wrap-anywhere">
-              “{rejecting.content}”
-            </p>
-            <ErrorSummary errors={rejectErrors} />
-            <Field label="Motif du refus" error={rejectErrors.rejection_category}>
-              <select
-                className="w-full border border-outline-variant bg-card p-xs text-body-sm"
-                value={rejectForm.rejection_category}
-                onChange={(e) =>
-                  setRejectForm({ ...rejectForm, rejection_category: e.target.value })
-                }
-              >
-                <option value="">— Choisir un motif —</option>
-                {REJECTION_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Raison du refus (obligatoire)" error={rejectErrors.rejection_note}>
-              <TextArea
-                rows={4}
-                value={rejectForm.rejection_note}
-                placeholder="Explique au collaborateur pourquoi sa soumission est refusée…"
-                onChange={(e) => setRejectForm({ ...rejectForm, rejection_note: e.target.value })}
-              />
-              <CharCounter value={rejectForm.rejection_note} max={500} />
-            </Field>
-            <FormActions pending={review.isPending} onCancel={() => setRejecting(null)} />
-          </form>
-        </Modal>
-      )}
+      {reviewDialogs}
       {submissionForm && (
         <Modal title="Soumettre une proposition" onClose={() => setSubmissionForm(null)}>
           <form onSubmit={sendSubmission} className="space-y-sm" noValidate>

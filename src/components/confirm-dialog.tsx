@@ -29,7 +29,8 @@ export function ConfirmDialog({
 }) {
   return (
     <AlertDialog open={open} onOpenChange={(o) => !o && !busy && onCancel()}>
-      <AlertDialogContent>
+      {/* Largeur explicite : le thème redéfinit --spacing-lg, ce qui réduirait max-w-lg à 2 rem. */}
+      <AlertDialogContent className="w-[min(28rem,calc(100vw-2rem))] max-w-none">
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description && <AlertDialogDescription>{description}</AlertDialogDescription>}

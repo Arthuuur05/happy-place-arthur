@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import type { ReactNode } from "react";
+import { AttachmentLink } from "@/components/attachment-link";
 import { PageError, PageLoading } from "@/components/page-states";
 import { SubmissionPreview } from "@/components/expandable-card";
-import { SubmissionReader } from "@/components/submission-reader";
+import { useSubmissionReview } from "@/components/submission-review";
 import { ValidatedSubmissions } from "@/components/dashboard-extras";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchMySubmissions, fetchSubmissions, timeAgo, type Submission } from "@/lib/dashboard";
@@ -17,10 +18,12 @@ function SubmissionList({
   items,
   onRead,
   empty,
+  actions,
 }: {
   items: Submission[];
   onRead: (s: Submission) => void;
   empty: string;
+  actions?: (s: Submission) => ReactNode;
 }) {
   if (items.length === 0)
     return <p className="text-body-sm text-on-surface-variant italic">{empty}</p>;
@@ -32,6 +35,8 @@ function SubmissionList({
             {s.author_name} • {s.team} • {s.status} • {timeAgo(s.created_at)}
           </p>
           <SubmissionPreview content={s.content} onOpen={() => onRead(s)} />
+          {actions && <AttachmentLink path={s.attachment_path} name={s.attachment_name} />}
+          {actions?.(s)}
         </li>
       ))}
     </ul>
@@ -41,7 +46,7 @@ function SubmissionList({
 function RequestsPage() {
   const { role, email } = Route.useRouteContext();
   const canReview = role === "admin" || role === "manager";
-  const [reading, setReading] = useState<Submission | null>(null);
+  const { setReading, approve, startReject, isPending, dialogs } = useSubmissionReview(canReview);
 
   const mine = useQuery({
     queryKey: ["submissions", "mine", email],
@@ -107,14 +112,27 @@ function RequestsPage() {
             items={pending.data ?? []}
             onRead={setReading}
             empty="Aucune demande en attente de validation."
+            actions={(s) => (
+              <div className="flex gap-xs pt-xs">
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => startReject(s)}
+                  className="flex-1 py-1 border border-outline text-primary font-label-sm text-label-sm hover:bg-surface-container disabled:opacity-50"
+                >
+                  REFUSER
+                </button>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => approve(s)}
+                  className="flex-1 py-1 bg-primary text-on-primary font-label-sm text-label-sm hover:opacity-90 disabled:opacity-50"
+                >
+                  VALIDER
+                </button>
+              </div>
+            )}
           />
-          <p className="text-body-sm text-on-surface-variant">
-            La validation et le refus se font depuis le{" "}
-            <Link to="/" className="underline">
-              dashboard
-            </Link>
-            .
-          </p>
         </section>
       )}
 
@@ -138,7 +156,7 @@ function RequestsPage() {
         />
       </div>
 
-      <SubmissionReader submission={reading} onClose={() => setReading(null)} />
+      {dialogs}
     </main>
   );
 }
