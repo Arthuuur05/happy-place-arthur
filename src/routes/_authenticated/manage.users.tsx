@@ -17,5 +17,5 @@ export const Route = createFileRoute("/_authenticated/manage/users")({
 
 function UsersPage() {
   const { email } = Route.useRouteContext();
-  return <UsersAdmin me={email} />;
+  return <UsersAdmin me={email} view="users" />;
 }

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -78,14 +78,6 @@ function NewsFeedPage() {
             >
               RÉDIGER UNE ACTUALITÉ
             </button>
-          )}
-          {isAdmin && (
-            <Link
-              to="/manage/news"
-              className="px-md py-xs border border-outline bg-surface text-primary font-label-md text-label-md hover:bg-surface-container"
-            >
-              GÉRER LES ACTUALITÉS
-            </Link>
           )}
         </div>
       </div>

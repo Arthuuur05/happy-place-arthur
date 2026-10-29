@@ -6,6 +6,7 @@ import { canReadAttachment } from "@/components/dashboard-extras";
 import { BlockerAdminActions, SubmissionAdminActions } from "@/components/manage/admin-row-actions";
 import { PageError, PageLoading } from "@/components/page-states";
 import { SubmitIdeaModal } from "@/components/submit-idea";
+import { TabBar } from "@/components/tab-bar";
 import { useSubmissionReview } from "@/components/submission-review";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllBlockers, fetchAllSubmissions, type Blocker } from "@/lib/dashboard";
@@ -112,28 +113,12 @@ function RequestsPage() {
         </button>
       </div>
 
-      <div
-        role="tablist"
-        aria-label="Type de demande"
-        className="flex flex-wrap gap-xs border-b border-outline-variant pb-sm"
-      >
-        {REQUEST_TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => void navigate({ search: { tab: t.id }, replace: true })}
-            className={`px-md py-xs border font-label-md text-label-md ${
-              tab === t.id
-                ? "bg-primary text-on-primary border-primary"
-                : "border-outline-variant text-on-surface-variant hover:bg-surface-container"
-            }`}
-          >
-            {t.label} ({counts[t.id]})
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={REQUEST_TABS.map((t) => ({ id: t.id, label: `${t.label} (${counts[t.id]})` }))}
+        active={tab}
+        label="Type de demande"
+        onChange={(id) => void navigate({ search: { tab: id }, replace: true })}
+      />
 
       {shown.length === 0 ? (
         <p className="text-body-sm text-on-surface-variant italic">Rien pour le moment.</p>

@@ -98,8 +98,8 @@ async function downloadTemplate() {
     "4. Une adresse mail ne peut apparaître qu'une fois : une adresse = un rôle.",
     "5. Collaborateur : équipe obligatoire. Manager : équipe facultative, une équipe peut avoir plusieurs managers. Admin : équipe vide ou Admin.",
     "6. Exporte l'onglet Utilisateurs en CSV (Google Sheets : Fichier > Télécharger > CSV).",
-    "7. Dans Happy Place : Gérer > Utilisateurs autorisés > Importer une liste, vérifie l'aperçu puis confirme.",
-    "8. L'équipe doit exister dans Happy Place : un admin peut en créer une dans Gérer > Utilisateurs autorisés > Équipes.",
+    "7. Dans Happy Place : Équipes > Utilisateurs (ou Équipes) > Importer une liste, vérifie l'aperçu puis confirme.",
+    "8. L'équipe doit exister dans Happy Place : un admin peut en créer une dans Équipes > Équipes > Créer une nouvelle équipe.",
   ].forEach((t, i) => (help.getCell(`A${i + 1}`).value = t));
   const buf = await wb.xlsx.writeBuffer();
   download(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "happy-place-import-utilisateurs.xlsx");
