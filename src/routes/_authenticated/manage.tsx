@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -17,7 +17,8 @@ export const Route = createFileRoute("/_authenticated/manage")({
       { property: "og:title", content: "Gestion des données — Happy Place" },
       {
         property: "og:description",
-        content: "Gestion de l'activité d'un cabinet de recrutement spécialisé dans l'IT et le digital.",
+        content:
+          "Gestion de l'activité d'un cabinet de recrutement spécialisé dans l'IT et le digital.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -29,16 +30,44 @@ export const Route = createFileRoute("/_authenticated/manage")({
   component: ManageLayout,
 });
 
-const tabs = [
-  { to: "/manage/news", label: "ACTUALITÉS" },
-  { to: "/manage/submissions", label: "SOUMISSIONS" },
-  { to: "/manage/blockers", label: "POINTS BLOQUANTS" },
-  { to: "/manage/metrics", label: "INDICATEURS" },
-  { to: "/manage/users", label: "UTILISATEURS AUTORISÉS" },
-] as const;
+// Chaque page de gestion s'ouvre depuis sa page d'origine : titre et retour propres à chacune, pas d'onglets.
+type Section = {
+  title: string;
+  back: { to: "/" | "/actualites" | "/demandes" | "/equipes"; label: string };
+};
+
+const SECTIONS: Record<string, Section> = {
+  "/manage/news": {
+    title: "Gestion des actualités",
+    back: { to: "/actualites", label: "← RETOUR AU FIL D'ACTUALITÉS" },
+  },
+  "/manage/submissions": {
+    title: "Gestion des soumissions",
+    back: { to: "/demandes", label: "← RETOUR AUX DEMANDES" },
+  },
+  "/manage/blockers": {
+    title: "Gestion des points bloquants",
+    back: { to: "/demandes", label: "← RETOUR AUX DEMANDES" },
+  },
+  "/manage/metrics": {
+    title: "Gestion des indicateurs",
+    back: { to: "/", label: "← RETOUR À LA VUE D'ENSEMBLE" },
+  },
+  "/manage/users": {
+    title: "Utilisateurs autorisés",
+    back: { to: "/equipes", label: "← RETOUR AUX ÉQUIPES" },
+  },
+};
+
+const DEFAULT_SECTION: Section = {
+  title: "Gestion des données",
+  back: { to: "/", label: "← RETOUR À LA VUE D'ENSEMBLE" },
+};
 
 function ManageLayout() {
   const qc = useQueryClient();
+  const pathname = useRouterState({ select: (st) => st.location.pathname });
+  const section = SECTIONS[pathname.replace(/\/$/, "")] ?? DEFAULT_SECTION;
   // Suppression silencieuse des pièces jointes échues, une fois par chargement de /manage
   useEffect(() => {
     processAttachmentDeletionQueue()
@@ -57,28 +86,15 @@ function ManageLayout() {
             <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">
               Gestion des données
             </p>
-            <h1 className="font-headline-lg text-headline-lg text-primary">Gestion des données</h1>
+            <h1 className="font-headline-lg text-headline-lg text-primary">{section.title}</h1>
           </div>
           <Link
-            to="/"
+            to={section.back.to}
             className="px-md py-xs border border-outline bg-surface text-primary font-label-md text-label-md hover:bg-surface-container"
           >
-            ← RETOUR À LA VUE D'ENSEMBLE
+            {section.back.label}
           </Link>
         </div>
-
-        <nav className="flex flex-wrap gap-xs border-b border-outline-variant pb-sm">
-          {tabs.map((t) => (
-            <Link
-              key={t.to}
-              to={t.to}
-              className="px-md py-xs border border-outline-variant font-label-md text-label-md text-on-surface-variant hover:bg-surface-container"
-              activeProps={{ className: "bg-primary text-on-primary border-primary" }}
-            >
-              {t.label}
-            </Link>
-          ))}
-        </nav>
 
         <Outlet />
       </main>
