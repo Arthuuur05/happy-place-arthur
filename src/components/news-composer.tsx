@@ -1,0 +1,176 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Field, Modal, TextArea, TextInput } from "@/components/manage/crud-ui";
+import { supabase } from "@/integrations/supabase/client";
+import { publishDraftNews, saveDraftNews, type News } from "@/lib/dashboard";
+import {
+  NEWS_PUBLISH_ERROR,
+  NEWS_SAVE_ERROR,
+  validateNewsDraft,
+  type NewsDraftErrors,
+} from "@/lib/dashboard-blocks";
+import { emptyMedia, mediaFromNews, toNewsLinks } from "@/lib/news-media";
+
+/** Nom affiché comme auteur : prénom + nom du compte, à défaut son adresse. */
+async function fetchAuthorName(email: string): Promise<string> {
+  const { data } = await supabase
+    .from("allowed_users")
+    .select("first_name, last_name")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+  return [data?.first_name, data?.last_name].filter(Boolean).join(" ") || email;
+}
+
+/**
+ * Rédiger (ou terminer) une actualité : texte seulement.
+ * « Brouillon » enregistre ; « Publier » enregistre d'abord en brouillon puis demande confirmation.
+ * Fermer la fenêtre sans enregistrer abandonne la saisie.
+ */
+export function NewsComposerModal({
+  draft,
+  authorEmail,
+  onClose,
+}: {
+  draft?: News | null;
+  authorEmail: string;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [title, setTitle] = useState(draft?.title ?? "");
+  const [body, setBody] = useState(draft?.body ?? "");
+  const [errors, setErrors] = useState<NewsDraftErrors>({});
+  const [savedId, setSavedId] = useState<string | null>(draft?.id ?? null);
+  const [confirming, setConfirming] = useState(false);
+
+  const authorName = useQuery({
+    queryKey: ["author-name", authorEmail],
+    queryFn: () => fetchAuthorName(authorEmail),
+    retry: false,
+  });
+
+  const save = useMutation({
+    mutationFn: () => {
+      // Une actualité existante garde son auteur, ses liens et son image.
+      const media = draft ? mediaFromNews(draft) : emptyMedia();
+      return saveDraftNews({
+        id: savedId ?? undefined,
+        title: title.trim(),
+        body: body.trim(),
+        author: draft?.author ?? authorName.data ?? authorEmail,
+        author_email: draft?.author_email ?? authorEmail,
+        links: toNewsLinks(media.links),
+        media,
+      });
+    },
+    onError: () => toast.error(NEWS_SAVE_ERROR),
+  });
+
+  const publish = useMutation({
+    mutationFn: (id: string) => publishDraftNews(id),
+    onSuccess: () => {
+      toast.success("Actualité publiée.");
+      void qc.invalidateQueries({ queryKey: ["news"] });
+      onClose();
+    },
+    onError: () => {
+      setConfirming(false);
+      toast.error(NEWS_PUBLISH_ERROR);
+    },
+  });
+
+  function validated() {
+    const found = validateNewsDraft({ title, body });
+    setErrors(found);
+    return Object.keys(found).length === 0;
+  }
+
+  function saveAsDraft() {
+    if (!validated()) return;
+    save.mutate(undefined, {
+      onSuccess: () => {
+        toast.success("Brouillon enregistré.");
+        void qc.invalidateQueries({ queryKey: ["news"] });
+        onClose();
+      },
+    });
+  }
+
+  function askToPublish() {
+    if (!validated()) return;
+    save.mutate(undefined, {
+      onSuccess: (id) => {
+        setSavedId(id);
+        void qc.invalidateQueries({ queryKey: ["news"] });
+        setConfirming(true);
+      },
+    });
+  }
+
+  function cancelPublish() {
+    setConfirming(false);
+    toast.info("L'actualité reste en brouillon.");
+  }
+
+  const busy = save.isPending || publish.isPending;
+
+  return (
+    <>
+      <Modal title={draft ? "Modifier l'actualité" : "Rédiger une actualité"} onClose={onClose}>
+        <form
+          noValidate
+          className="space-y-md"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveAsDraft();
+          }}
+        >
+          <Field label="Titre" error={errors.title}>
+            <TextInput
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Saisis un titre…"
+              aria-invalid={!!errors.title}
+            />
+          </Field>
+          <Field label="Texte" error={errors.body}>
+            <TextArea
+              rows={6}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Rédige l'actualité…"
+              aria-invalid={!!errors.body}
+            />
+          </Field>
+          <div className="flex flex-wrap items-center justify-end gap-sm">
+            <button
+              type="submit"
+              disabled={busy}
+              className="px-md py-xs border border-outline bg-surface text-primary font-label-md text-label-md hover:bg-surface-container disabled:opacity-50"
+            >
+              {save.isPending && !confirming ? "Enregistrement…" : "Brouillon"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={askToPublish}
+              className="px-lg py-xs bg-primary text-on-primary font-label-md text-label-md disabled:opacity-50"
+            >
+              Publier
+            </button>
+          </div>
+        </form>
+      </Modal>
+      <ConfirmDialog
+        open={confirming}
+        title="Publier cette actualité ?"
+        description="Elle sera visible par tous."
+        confirmLabel="Publier"
+        busy={publish.isPending}
+        onCancel={cancelPublish}
+        onConfirm={() => savedId && publish.mutate(savedId)}
+      />
+    </>
+  );
+}

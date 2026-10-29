@@ -117,6 +117,7 @@ export async function saveDraftNews(input: {
     : await db.from("news").insert(payload).select("id").single();
   if (error) throw error;
   await applyNewsImage(data.id, input.media);
+  return data.id;
 }
 
 export async function publishDraftNews(id: string) {
@@ -145,6 +146,13 @@ export async function fetchSubmissions(): Promise<Submission[]> {
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as Submission[];
+}
+
+/** Vrai si la demande est toujours « en attente » (elle a pu être traitée par quelqu'un d'autre entre-temps). */
+export async function isSubmissionPending(id: string): Promise<boolean> {
+  const { data, error } = await db.from("submissions").select("status").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data?.status === "en attente";
 }
 
 export async function fetchMySubmissions(email: string): Promise<Submission[]> {
