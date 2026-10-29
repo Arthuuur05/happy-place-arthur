@@ -5,7 +5,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Field, Modal, TextArea, TextInput } from "@/components/manage/crud-ui";
 import { NewsMediaEditor } from "@/components/news-media";
 import { supabase } from "@/integrations/supabase/client";
-import { publishDraftNews, saveDraftNews, type News } from "@/lib/dashboard";
+import { publishDraftNews, saveDraftNews, updateNews, type News } from "@/lib/dashboard";
 import {
   NEWS_PUBLISH_ERROR,
   NEWS_SAVE_ERROR,
@@ -34,6 +34,7 @@ async function fetchAuthorName(email: string): Promise<string> {
  * Rédiger (ou terminer) une actualité : titre, texte, une image et jusqu'à 3 liens.
  * « Brouillon » enregistre ; « Publier » enregistre d'abord en brouillon puis demande confirmation.
  * Fermer la fenêtre sans enregistrer abandonne la saisie.
+ * Une actualité déjà publiée (admin) se modifie sans changer de statut : un seul bouton « Enregistrer ».
  */
 export function NewsComposerModal({
   draft,
@@ -45,6 +46,7 @@ export function NewsComposerModal({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const isPublished = draft?.status === "publiée";
   const [title, setTitle] = useState(draft?.title ?? "");
   const [body, setBody] = useState(draft?.body ?? "");
   const [errors, setErrors] = useState<NewsDraftErrors>({});
@@ -74,6 +76,29 @@ export function NewsComposerModal({
         links: toNewsLinks(media.links),
         media,
       });
+    },
+    onError: () => toast.error(NEWS_SAVE_ERROR),
+  });
+
+  const savePublished = useMutation({
+    mutationFn: () => {
+      if (!draft) throw new Error("Actualité introuvable");
+      return updateNews(
+        draft.id,
+        {
+          title: title.trim(),
+          body: body.trim(),
+          author: draft.author,
+          status: "publiée",
+          links: toNewsLinks(media.links),
+        },
+        media,
+      );
+    },
+    onSuccess: () => {
+      toast.success("Actualité modifiée.");
+      void qc.invalidateQueries({ queryKey: ["news"] });
+      onClose();
     },
     onError: () => toast.error(NEWS_SAVE_ERROR),
   });
@@ -113,6 +138,11 @@ export function NewsComposerModal({
     }));
   }
 
+  function saveChanges() {
+    if (!validated()) return;
+    savePublished.mutate();
+  }
+
   function saveAsDraft() {
     if (!validated()) return;
     save.mutate(undefined, {
@@ -141,7 +171,7 @@ export function NewsComposerModal({
     toast.info("L'actualité reste en brouillon.");
   }
 
-  const busy = save.isPending || publish.isPending;
+  const busy = save.isPending || publish.isPending || savePublished.isPending;
 
   return (
     <>
@@ -151,7 +181,8 @@ export function NewsComposerModal({
           className="space-y-md"
           onSubmit={(e) => {
             e.preventDefault();
-            saveAsDraft();
+            if (isPublished) saveChanges();
+            else saveAsDraft();
           }}
         >
           <Field label="Titre" error={errors.title}>
@@ -179,21 +210,33 @@ export function NewsComposerModal({
             title={title}
           />
           <div className="flex flex-wrap items-center justify-end gap-sm">
-            <button
-              type="submit"
-              disabled={busy}
-              className="px-md py-xs border border-outline bg-surface text-primary font-label-md text-label-md hover:bg-surface-container disabled:opacity-50"
-            >
-              {save.isPending && !confirming ? "Enregistrement…" : "Brouillon"}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={askToPublish}
-              className="px-lg py-xs bg-primary text-on-primary font-label-md text-label-md disabled:opacity-50"
-            >
-              Publier
-            </button>
+            {isPublished ? (
+              <button
+                type="submit"
+                disabled={busy}
+                className="px-lg py-xs bg-primary text-on-primary font-label-md text-label-md disabled:opacity-50"
+              >
+                {savePublished.isPending ? "Enregistrement…" : "Enregistrer"}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="px-md py-xs border border-outline bg-surface text-primary font-label-md text-label-md hover:bg-surface-container disabled:opacity-50"
+                >
+                  {save.isPending && !confirming ? "Enregistrement…" : "Brouillon"}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={askToPublish}
+                  className="px-lg py-xs bg-primary text-on-primary font-label-md text-label-md disabled:opacity-50"
+                >
+                  Publier
+                </button>
+              </>
+            )}
           </div>
         </form>
       </Modal>

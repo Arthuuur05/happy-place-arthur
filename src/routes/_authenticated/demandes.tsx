@@ -1,9 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { BlockerDetail } from "@/components/blocker-detail";
 import { canReadAttachment } from "@/components/dashboard-extras";
+import { BlockerAdminActions, SubmissionAdminActions } from "@/components/manage/admin-row-actions";
 import { PageError, PageLoading } from "@/components/page-states";
+import { SubmitIdeaModal } from "@/components/submit-idea";
 import { useSubmissionReview } from "@/components/submission-review";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllBlockers, fetchAllSubmissions, type Blocker } from "@/lib/dashboard";
@@ -29,6 +31,8 @@ function RequestsPage() {
   const { setReading, approve, startReject, isPending, dialogs } = useSubmissionReview(canReview);
   const [tab, setTab] = useState<RequestTab>("all");
   const [blocker, setBlocker] = useState<Blocker | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const isAdmin = role === "admin";
 
   // La base ne renvoie que ce que le rôle a le droit de voir (RLS) : on n'ajoute aucun filtre ici.
   const blockers = useQuery({
@@ -91,12 +95,16 @@ function RequestsPage() {
           </p>
           <h1 className="font-headline-lg text-headline-lg text-primary">Demandes</h1>
         </div>
-        <Link
-          to="/"
-          className="px-md py-xs border border-outline bg-surface text-primary font-label-md text-label-md hover:bg-surface-container"
+        <button
+          type="button"
+          onClick={() => setSubmitting(true)}
+          className="flex items-center gap-xs px-md py-xs bg-primary text-on-primary font-label-md text-label-md hover:opacity-90 shadow-sm"
         >
-          SOUMETTRE UNE IDÉE DEPUIS LE DASHBOARD
-        </Link>
+          <span aria-hidden="true" className="material-symbols-outlined">
+            add
+          </span>{" "}
+          SOUMETTRE UNE IDÉE
+        </button>
       </div>
 
       <div
@@ -172,17 +180,25 @@ function RequestsPage() {
                     </button>
                   </div>
                 )}
+                {isAdmin && (item.kind === "blocker" || item.status !== "en attente") && (
+                  <div className="flex justify-end border-t border-outline-variant p-sm">
+                    {item.kind === "blocker" ? (
+                      <BlockerAdminActions blocker={item.blocker} />
+                    ) : (
+                      <SubmissionAdminActions submission={item.submission} />
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
       )}
 
-      <BlockerDetail
-        blocker={blocker}
-        isAdmin={role === "admin"}
-        onClose={() => setBlocker(null)}
-      />
+      {submitting && (
+        <SubmitIdeaModal role={role} email={email} onClose={() => setSubmitting(false)} />
+      )}
+      <BlockerDetail blocker={blocker} isAdmin={isAdmin} onClose={() => setBlocker(null)} />
       {dialogs}
     </main>
   );

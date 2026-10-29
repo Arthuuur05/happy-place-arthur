@@ -1,28 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  ErrorSummary,
-  Field,
-  FormActions,
-  Modal,
-  TextArea,
-  TextInput,
-} from "@/components/manage/crud-ui";
-import { submissionSchema, validate, type FieldErrors } from "@/lib/manage-schemas";
 import { AttachmentLink } from "@/components/attachment-link";
-import {
-  CharCounter,
-  SubmissionPreview,
-  rejectionErrorMessage,
-} from "@/components/expandable-card";
+import { SubmissionPreview } from "@/components/expandable-card";
 import { Linkify } from "@/components/linkify";
 import { useSubmissionReview } from "@/components/submission-review";
 import { DepartureNotices } from "@/components/departure-notices";
 import { PendingRequestsBlock } from "@/components/pending-requests";
 import { RecentNewsBlock } from "@/components/recent-news";
+import { MetricsDialog } from "@/components/metrics-dialog";
 import { BlockerArchive, ValidatedSubmissions } from "@/components/dashboard-extras";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,14 +19,11 @@ import {
   deltaText,
   fetchMySubmissions,
   exportMyRecentSubmissions,
-  type Submission,
-  submitIdea,
   timeAgo,
   updateBlockerStatus,
   updateMetric,
   TREND_LABELS,
   type Metric,
-  type SubmissionInput,
 } from "@/lib/dashboard";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -105,8 +90,6 @@ function ManagerSpace() {
   const { setReading, dialogs: reviewDialogs } = useSubmissionReview(canReview);
   const myEmail = (email ?? "").toLowerCase();
   const [nps, setNps] = useState<string>("");
-  const [submissionForm, setSubmissionForm] = useState<SubmissionInput | null>(null);
-  const [submissionErrors, setSubmissionErrors] = useState<FieldErrors>({});
   const myTeams = useQuery({
     queryKey: ["manager_teams", "mine", email],
     enabled: role === "manager" && !!email,
@@ -119,8 +102,8 @@ function ManagerSpace() {
       return (data ?? []).map((t) => t.team).sort();
     },
   });
-  const [attachment, setAttachment] = useState<File | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [metricsOpen, setMetricsOpen] = useState(false);
 
   const mine = useQuery({
     queryKey: ["submissions", "mine", email],
@@ -149,26 +132,6 @@ function ManagerSpace() {
     onError,
   });
 
-  const submit = useMutation({
-    mutationFn: (input: SubmissionInput) =>
-      submitIdea(
-        {
-          author_name: input.author_name,
-          team: input.team,
-          content: input.content,
-        },
-        attachment,
-      ),
-    onSuccess: () => {
-      setSubmissionForm(null);
-      setAttachment(null);
-      setSubmissionErrors({});
-      toast.success("Soumission envoyée");
-      qc.invalidateQueries({ queryKey: ["submissions"] });
-    },
-    onError: (e: unknown) => toast.error(rejectionErrorMessage(e)),
-  });
-
   const setBlocker = useMutation({
     mutationFn: updateBlockerStatus,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["blockers"] }),
@@ -187,22 +150,6 @@ function ManagerSpace() {
   const npsMetric = metricOf(metrics.data, "nps");
   const roleLabel = role === "admin" ? "ADMIN" : role === "manager" ? "MANAGER" : "COLLABORATEUR";
 
-  function sendSubmission(e: React.FormEvent) {
-    e.preventDefault();
-    if (!submissionForm) return;
-    // Collaborators: team is set server-side from their account
-    // Admin: always the « Admin » team (set server-side); manager: one of their teams
-    const team =
-      role === "collaborateur" ? "auto" : role === "admin" ? "Admin" : submissionForm.team;
-    const result = validate(submissionSchema, { ...submissionForm, team, status: "en attente" });
-    if (!result.ok) {
-      setSubmissionErrors(result.errors);
-      return;
-    }
-    setSubmissionErrors({});
-    submit.mutate(result.data);
-  }
-
   return (
     <div className="bg-background text-on-surface font-body-md flex flex-col">
       <main className="flex-grow w-full max-w-interface mx-auto p-sm md:p-md space-y-md">
@@ -213,45 +160,11 @@ function ManagerSpace() {
               Vue d'ensemble
             </p>
             <h1 className="font-headline-lg text-headline-lg text-primary">Happy Place</h1>
-            <button
-              onClick={() => {
-                setSubmissionErrors({});
-                const only =
-                  role === "manager" && myTeams.data?.length === 1 ? myTeams.data[0] : "";
-                setSubmissionForm({
-                  author_name: "",
-                  team: only,
-                  content: "",
-                  status: "en attente",
-                });
-              }}
-              className="flex items-center gap-xs px-md py-xs bg-primary text-on-primary font-label-md text-label-md hover:opacity-90 transition-all shadow-sm"
-            >
-              <Icon name="add" /> SOUMETTRE UNE IDÉE
-            </button>
           </div>
           <div className="flex flex-wrap gap-xs items-center md:items-end md:justify-end">
             <span className="font-label-sm text-label-sm text-on-surface-variant">
               {email} · {roleLabel}
             </span>
-            {isAdmin && (
-              <Link
-                to="/manage/news"
-                className="flex items-center gap-xs px-md py-xs border border-outline bg-surface text-primary font-label-md text-label-md hover:bg-surface-container transition-all"
-              >
-                <Icon name="database" /> GÉRER LES DONNÉES
-              </Link>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={exportReport.isPending}
-              onClick={() => exportReport.mutate()}
-              className="h-auto rounded-none border-outline bg-surface px-md py-xs font-label-md text-label-md text-primary shadow-none hover:bg-surface-container"
-            >
-              <Icon name="file_download" />{" "}
-              {exportReport.isPending ? "EXPORT EN COURS…" : "EXPORTER LE RAPPORT"}
-            </Button>
           </div>
         </div>
 
@@ -381,7 +294,16 @@ function ManagerSpace() {
             <div className="flex items-center justify-between mb-md">
               <h2 className="font-headline-sm text-headline-sm text-primary">Indicateurs</h2>
               {isAdmin && (
-                <Icon name="settings" className="text-on-surface-variant cursor-pointer" />
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-label="Modifier les indicateurs"
+                  title="Modifier les indicateurs"
+                  onClick={() => setMetricsOpen(true)}
+                  className="text-on-surface-variant hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <Icon name="settings" />
+                </button>
               )}
             </div>
             <div className="grid grid-cols-2 gap-sm mb-md">
@@ -411,6 +333,18 @@ function ManagerSpace() {
                     ` · ${deltaText(metricOf(metrics.data, "active_users"))}`}
                 </p>
               </div>
+            </div>
+            <div className="mb-md">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={exportReport.isPending}
+                onClick={() => exportReport.mutate()}
+                className="h-auto rounded-none border-outline bg-surface px-md py-xs font-label-md text-label-md text-primary shadow-none hover:bg-surface-container"
+              >
+                <Icon name="file_download" />{" "}
+                {exportReport.isPending ? "EXPORT EN COURS…" : "EXPORTER LE RAPPORT"}
+              </Button>
             </div>
             {isAdmin && (
               <div className="space-y-xs">
@@ -459,88 +393,7 @@ function ManagerSpace() {
       </main>
       <BlockerArchive open={archiveOpen} onClose={() => setArchiveOpen(false)} />
       {reviewDialogs}
-      {submissionForm && (
-        <Modal title="Soumettre une proposition" onClose={() => setSubmissionForm(null)}>
-          <form onSubmit={sendSubmission} className="space-y-sm" noValidate>
-            <ErrorSummary errors={submissionErrors} />
-            <Field label="Nom" error={submissionErrors.author_name}>
-              <TextInput
-                value={submissionForm.author_name}
-                maxLength={80}
-                placeholder="Ton nom"
-                onChange={(e) =>
-                  setSubmissionForm({ ...submissionForm, author_name: e.target.value })
-                }
-              />
-            </Field>
-            {role === "manager" && (
-              <Field label="Équipe" error={submissionErrors.team}>
-                <select
-                  required
-                  value={submissionForm.team}
-                  onChange={(e) => setSubmissionForm({ ...submissionForm, team: e.target.value })}
-                  className="w-full border border-outline-variant bg-surface px-sm py-xs font-body-md"
-                >
-                  <option value="">Choisis une de tes équipes</option>
-                  {myTeams.data?.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
-            {role === "admin" && (
-              <p className="text-body-sm text-on-surface-variant">Équipe : Admin</p>
-            )}
-            <Field label="Proposition" error={submissionErrors.content}>
-              <TextArea
-                rows={5}
-                value={submissionForm.content}
-                placeholder="Décris l'amélioration proposée pour le cabinet…"
-                onChange={(e) => setSubmissionForm({ ...submissionForm, content: e.target.value })}
-              />
-              <CharCounter value={submissionForm.content} max={2000} min={5} />
-            </Field>
-            <Field label="Document PDF (optionnel, 20 Mo max)" error={submissionErrors.attachment}>
-              <input
-                type="file"
-                accept="application/pdf,.pdf"
-                className="block w-full text-body-sm"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  if (f && f.type !== "application/pdf") {
-                    setSubmissionErrors({
-                      ...submissionErrors,
-                      attachment: "Seuls les fichiers PDF sont acceptés.",
-                    });
-                    e.target.value = "";
-                    setAttachment(null);
-                    return;
-                  }
-                  if (f && f.size > 20 * 1024 * 1024) {
-                    setSubmissionErrors({
-                      ...submissionErrors,
-                      attachment: "Le fichier dépasse 20 Mo.",
-                    });
-                    e.target.value = "";
-                    setAttachment(null);
-                    return;
-                  }
-                  const { attachment: _a, ...rest } = submissionErrors;
-                  setSubmissionErrors(rest);
-                  setAttachment(f);
-                }}
-              />
-            </Field>
-            <FormActions
-              pending={submit.isPending}
-              submitLabel="ENVOYER"
-              onCancel={() => setSubmissionForm(null)}
-            />
-          </form>
-        </Modal>
-      )}
+      {isAdmin && <MetricsDialog open={metricsOpen} onClose={() => setMetricsOpen(false)} />}
     </div>
   );
 }

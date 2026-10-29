@@ -39,11 +39,16 @@ function NewsFeedPage() {
 
   const remove = useMutation({
     mutationFn: (n: News) => deleteDraftNews(n.id, n.image_path),
-    onSuccess: () => {
-      toast.success("Brouillon supprimé.");
+    onSuccess: (_d, n) => {
+      toast.success(n.status === "publiée" ? "Actualité supprimée." : "Brouillon supprimé.");
       void qc.invalidateQueries({ queryKey: ["news"] });
     },
-    onError: () => toast.error("Le brouillon n'a pas pu être supprimé. Réessayez."),
+    onError: (_e, n) =>
+      toast.error(
+        n.status === "publiée"
+          ? "L'actualité n'a pas pu être supprimée. Réessayez."
+          : "Le brouillon n'a pas pu être supprimé. Réessayez.",
+      ),
     onSettled: () => setPending(null),
   });
 
@@ -150,11 +155,14 @@ function NewsFeedPage() {
         ) : (
           <ul className="space-y-xs">
             {published.map((n) => (
-              <li key={n.id}>
+              <li
+                key={n.id}
+                className="flex flex-col gap-sm border border-outline-variant bg-surface-container-lowest sm:flex-row sm:items-start sm:justify-between"
+              >
                 <button
                   type="button"
                   onClick={() => setReading(n)}
-                  className="w-full min-w-0 space-y-xs border border-outline-variant bg-surface-container-lowest p-md text-left hover:bg-surface-container"
+                  className="min-w-0 flex-1 space-y-xs p-md text-left hover:bg-surface-container"
                 >
                   <p className="font-headline-sm text-headline-sm text-primary wrap-anywhere">
                     {n.title}
@@ -168,6 +176,24 @@ function NewsFeedPage() {
                     </p>
                   )}
                 </button>
+                {isAdmin && (
+                  <div className="flex shrink-0 items-center gap-sm p-md sm:pl-0">
+                    <button
+                      type="button"
+                      className="font-label-sm text-label-sm text-on-surface-variant hover:text-primary"
+                      onClick={() => setComposing({ draft: n })}
+                    >
+                      Modifier
+                    </button>
+                    <button
+                      type="button"
+                      className="font-label-sm text-label-sm text-error"
+                      onClick={() => setPending({ kind: "delete", news: n })}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -194,7 +220,11 @@ function NewsFeedPage() {
       />
       <ConfirmDialog
         open={pending?.kind === "delete"}
-        title="Supprimer ce brouillon ?"
+        title={
+          pending?.news.status === "publiée"
+            ? "Supprimer cette actualité ?"
+            : "Supprimer ce brouillon ?"
+        }
         description={
           pending ? `« ${pending.news.title} » sera supprimé définitivement.` : undefined
         }
